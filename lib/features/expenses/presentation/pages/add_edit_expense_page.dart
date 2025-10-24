@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:hive/hive.dart';
 
+import '../../../../core/theme/design_system.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/adaptive_dialog.dart';
 import '../../../../core/widgets/adaptive_button.dart';
@@ -71,11 +72,17 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final controller = ref.read(expensesProvider.notifier);
     final categoriesBox = Hive.box<Category>('categories');
     final categories = categoriesBox.values.toList();
 
     final isEdit = widget.expenseId != null;
+    final accent = Color(
+      _selectedCategory?.color ?? theme.colorScheme.primary.value,
+    );
+    final emoji =
+        _selectedCategory?.emoji.isNotEmpty == true ? _selectedCategory!.emoji : '💸';
 
     return Scaffold(
       appBar: AppBar(
@@ -125,135 +132,368 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
             ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
         child: Form(
           key: _formKey,
           child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-              // Amount
-              TextFormField(
-                controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+              HeroMode(
+                enabled: !isEdit,
+                child: Hero(
+                  tag: 'add-expense-cta',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: _ExpenseHeader(
+                      isEdit: isEdit,
+                      accent: accent,
+                      emoji: emoji,
+                      categoryLabel:
+                          _selectedCategory?.name ?? 'Choose a category',
+                      dateLabel: formatDate(_selectedDate),
+                    ),
+                  ),
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Amount (USD)',
-                  prefixIcon: Icon(Icons.attach_money),
-                ),
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Enter an amount';
-                  final d = double.tryParse(v);
-                  if (d == null || d <= 0) return 'Enter a valid number';
-                  return null;
-                },
               ),
               const SizedBox(height: 16),
-
-              // Date
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Date: ${formatDate(_selectedDate)}'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) setState(() => _selectedDate = picked);
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Category
-              DropdownButtonFormField<Category>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  prefixIcon: Icon(Icons.category),
-                ),
-                items: categories
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c,
-                        child: Row(
-                          children: [
-                            Text(c.emoji.isNotEmpty ? '${c.emoji} ' : ''),
-                            Text(c.name),
-                          ],
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _SectionLabel('Amount'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _amountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: '0.00',
+                          prefixIcon: Icon(Icons.attach_money),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'Enter an amount';
+                          }
+                          final d = double.tryParse(v);
+                          if (d == null || d <= 0) {
+                            return 'Enter a valid number';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      const _SectionLabel('Date'),
+                      const SizedBox(height: 8),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _selectedDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setState(() => _selectedDate = picked);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color: theme.colorScheme.surfaceVariant
+                                  .withOpacity(0.4),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.calendar_today, color: accent),
+                                const SizedBox(width: 12),
+                                Text(
+                                  formatDate(_selectedDate),
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const Spacer(),
+                                const Icon(Icons.chevron_right),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedCategory = v),
-                validator: (v) => v == null ? 'Please select a category' : null,
-              ),
-              const SizedBox(height: 16),
+                      const SizedBox(height: 18),
+                      const _SectionLabel('Category'),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<Category>(
+                        value: _selectedCategory,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.category),
+                          hintText: 'Select a category',
+                        ),
+                        items: categories
+                            .map(
+                              (c) => DropdownMenuItem(
+                                value: c,
+                                child: Row(
+                                  children: [
+                                    Text(c.emoji.isNotEmpty ? '${c.emoji} ' : ''),
+                                    Text(c.name),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setState(() => _selectedCategory = v),
+                        validator: (v) =>
+                            v == null ? 'Please select a category' : null,
+                      ),
+                      const SizedBox(height: 18),
+                      const _SectionLabel('Note'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _noteController,
+                        decoration: const InputDecoration(
+                          hintText: 'Add a quick note (optional)',
+                          prefixIcon: Icon(Icons.note),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          AdaptiveButton(
+                            label: 'Cancel',
+                            style: AdaptiveButtonStyle.secondary,
+                            onPressed: () {
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go('/');
+                              }
+                            },
+                          ),
+                          AdaptiveButton(
+                            label: isEdit ? 'Save Changes' : 'Save Expense',
+                            icon: Icons.save,
+                            onPressed: () async {
+                              if (!(_formKey.currentState?.validate() ?? false)) {
+                                return;
+                              }
 
-              // Note
-              TextFormField(
-                controller: _noteController,
-                decoration: const InputDecoration(
-                  labelText: 'Note',
-                  prefixIcon: Icon(Icons.note),
+                              final amount =
+                                  double.parse(_amountController.text);
+                              final updated = Expense(
+                                id: _original?.id ?? const Uuid().v4(),
+                                amountMinor: (amount * 100).round(),
+                                categoryId: _selectedCategory!.id,
+                                note: _noteController.text,
+                                date: _selectedDate,
+                              );
+
+                              if (isEdit) {
+                                await controller.update(updated);
+                              } else {
+                                await controller.add(updated);
+                              }
+
+                              if (!mounted) return;
+                              if (context.canPop()) {
+                                context.pop();
+                              } else {
+                                context.go('/');
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 24),
-
-              // Actions (adaptive)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  AdaptiveButton(
-                    label: 'Cancel',
-                    style: AdaptiveButtonStyle.text,
-                    onPressed: () {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go('/');
-                      }
-                    },
-                  ),
-                  AdaptiveButton(
-                    label: isEdit ? 'Save Changes' : 'Save Expense',
-                    icon: Icons.save,
-                    onPressed: () async {
-                      if (!(_formKey.currentState?.validate() ?? false)) return;
-
-                      final amount = double.parse(_amountController.text);
-                      final updated = Expense(
-                        id: _original?.id ?? const Uuid().v4(),
-                        amountMinor: (amount * 100).round(),
-                        categoryId: _selectedCategory!.id,
-                        note: _noteController.text,
-                        date: _selectedDate,
-                      );
-
-                      if (isEdit) {
-                        await controller.update(updated);
-                      } else {
-                        await controller.add(updated);
-                      }
-
-                      if (!mounted) return;
-                      // Return to the previous screen naturally
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go('/');
-                      }
-                    },
-                  ),
-                ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ExpenseHeader extends StatelessWidget {
+  const _ExpenseHeader({
+    required this.isEdit,
+    required this.accent,
+    required this.emoji,
+    required this.categoryLabel,
+    required this.dateLabel,
+  });
+
+  final bool isEdit;
+  final Color accent;
+  final String emoji;
+  final String categoryLabel;
+  final String dateLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isCompact = constraints.maxWidth < 320;
+        final badge = Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withOpacity(0.2),
+          ),
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: 28),
+          ),
+        );
+
+        final dateTexts = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Scheduled on',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.white70,
+              ),
+            ),
+            Text(
+              dateLabel,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+
+        final trailingIcon = Icon(
+          isEdit ? Icons.edit_note : Icons.auto_awesome,
+          color: Colors.white70,
+          size: 32,
+        );
+
+        Widget content = Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                accent,
+                accent.withOpacity(0.75),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withOpacity(0.3),
+                blurRadius: 30,
+                offset: const Offset(0, 20),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isEdit ? 'Update expense' : 'New expense',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: Colors.white70,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 6),
+              AnimatedSwitcher(
+                duration: AppDurations.medium,
+                child: Text(
+                  categoryLabel,
+                  key: ValueKey(categoryLabel),
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (isCompact)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    badge,
+                    const SizedBox(height: 12),
+                    dateTexts,
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: trailingIcon,
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    badge,
+                    const SizedBox(width: 16),
+                    Expanded(child: dateTexts),
+                    trailingIcon,
+                  ],
+                ),
+            ],
+          ),
+        );
+
+        const double preferredWidth = 360;
+        const double preferredHeight = 220;
+        final constrained = ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: preferredWidth),
+          child: content,
+        );
+
+        final fitsHeight = constraints.maxHeight.isInfinite ||
+            constraints.maxHeight >= preferredHeight;
+
+        if (!isCompact && fitsHeight) {
+          return constrained;
+        }
+
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: constrained,
+        );
+      },
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            letterSpacing: 1.1,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
     );
   }
 }

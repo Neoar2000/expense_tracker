@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/theme/design_system.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/adaptive_dialog.dart';
 import '../../data/models/expense.dart';
@@ -47,7 +48,8 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
 
   Future<void> _pickDateRange(FilterState filters) async {
     final now = DateTime.now();
-    final initialRange = filters.dateRange ??
+    final initialRange =
+        filters.dateRange ??
         DateTimeRange(
           start: DateTime(now.year, now.month, 1),
           end: DateTime(now.year, now.month, now.day),
@@ -91,22 +93,28 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
       floatingActionButton: Platform.isIOS
           ? Padding(
               padding: const EdgeInsets.only(right: 16, bottom: 12),
-              child: CupertinoButton.filled(
-                onPressed: () => context.push('/add'),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(CupertinoIcons.add, size: 18),
-                    SizedBox(width: 8),
-                    Text('Add'),
-                  ],
+              child: Hero(
+                tag: 'add-expense-cta',
+                child: CupertinoButton.filled(
+                  onPressed: () => context.push('/add'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.add, size: 18),
+                      SizedBox(width: 8),
+                      Text('Add'),
+                    ],
+                  ),
                 ),
               ),
             )
           : FloatingActionButton.extended(
-              onPressed: () => context.push('/add'), // keep push so back works
+              heroTag: 'add-expense-cta',
+              onPressed: () => context.push('/add'),
               icon: const Icon(Icons.add),
               label: const Text('Add'),
             ),
@@ -122,11 +130,15 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
                       ref.read(filtersProvider.notifier).setQuery(value),
                   onCategoryChanged: (value) => ref
                       .read(filtersProvider.notifier)
-                      .setCategory(value == null || value.isEmpty ? null : value),
+                      .setCategory(
+                        value == null || value.isEmpty ? null : value,
+                      ),
                   onDateTap: () => _pickDateRange(filters),
                   onClearDate: filters.dateRange == null
                       ? null
-                      : () => ref.read(filtersProvider.notifier).setDateRange(null),
+                      : () => ref
+                            .read(filtersProvider.notifier)
+                            .setDateRange(null),
                   onClearAll: filters.hasActiveFilters
                       ? () {
                           ref.read(filtersProvider.notifier).clearFilters();
@@ -134,12 +146,53 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
                         }
                       : null,
                 ),
-                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Row(
+                    children: [
+                      AnimatedSwitcher(
+                        duration: AppDurations.short,
+                        child: Text(
+                          filteredExpenses.isEmpty
+                              ? 'No matching expenses'
+                              : 'Showing ${filteredExpenses.length} of ${allExpenses.length}',
+                          key: ValueKey(
+                            '${filteredExpenses.length}-${allExpenses.length}',
+                          ),
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      if (filters.hasActiveFilters)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'Filters on',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  letterSpacing: 0.6,
+                                ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Expanded(
                   child: filteredExpenses.isEmpty
                       ? _NoResults(query: filters.query)
                       : ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           itemCount: filteredExpenses.length,
                           itemBuilder: (context, index) {
                             final Expense e = filteredExpenses[index];
@@ -149,16 +202,23 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
                               direction: DismissDirection.endToStart,
                               background: Container(
                                 alignment: Alignment.centerRight,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 20),
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .errorContainer,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(32),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.errorContainer,
+                                ),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
                                 child: Icon(
                                   Icons.delete,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onErrorContainer,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
                                 ),
                               ),
 
@@ -178,14 +238,7 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
                                 );
                               },
 
-                              // tile inside a Card keeps animation stable
-                              child: Card(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                child: ExpenseTile(expense: e),
-                              ),
+                              child: ExpenseTile(expense: e),
                             );
                           },
                         ),
@@ -220,7 +273,16 @@ class _FiltersBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasFilters = filters.hasActiveFilters;
-
+    final theme = Theme.of(context);
+    Category? selectedCategory;
+    if (filters.categoryId != null) {
+      for (final c in categories) {
+        if (c.id == filters.categoryId) {
+          selectedCategory = c;
+          break;
+        }
+      }
+    }
     String dateLabel = 'Any time';
     if (filters.dateRange != null) {
       final start = formatDate(filters.dateRange!.start);
@@ -228,8 +290,22 @@ class _FiltersBar extends StatelessWidget {
       dateLabel = '$start - $end';
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    return AnimatedContainer(
+      duration: AppDurations.short,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: theme.colorScheme.surfaceVariant),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.05),
+            blurRadius: 26,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -238,7 +314,7 @@ class _FiltersBar extends StatelessWidget {
             onChanged: onQueryChanged,
             decoration: InputDecoration(
               prefixIcon: const Icon(Icons.search),
-              labelText: 'Search notes or id',
+              labelText: 'Search notes or ID',
               suffixIcon: controller.text.isEmpty
                   ? null
                   : IconButton(
@@ -251,56 +327,114 @@ class _FiltersBar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 220,
-                child: DropdownButtonFormField<String?>(
-                  key: ValueKey<String?>(filters.categoryId),
-                  initialValue: filters.categoryId,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    prefixIcon: Icon(Icons.category_outlined),
-                  ),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('All categories'),
+          AnimatedSize(
+            duration: AppDurations.short,
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 240,
+                  child: DropdownButtonFormField<String?>(
+                    key: ValueKey<String?>(filters.categoryId),
+                    value: filters.categoryId,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      prefixIcon: Icon(Icons.category_outlined),
                     ),
-                    ...categories.map(
-                      (c) => DropdownMenuItem<String?>(
-                        value: c.id,
-                        child: Text('${c.emoji.isNotEmpty ? '${c.emoji} ' : ''}${c.name}'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('All categories'),
                       ),
+                      ...categories.map(
+                        (c) => DropdownMenuItem<String?>(
+                          value: c.id,
+                          child: Text(
+                            '${c.emoji.isNotEmpty ? '${c.emoji} ' : ''}${c.name}',
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: onCategoryChanged,
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: onDateTap,
+                  icon: const Icon(Icons.event),
+                  label: Text(dateLabel),
+                ),
+                if (filters.dateRange != null)
+                  IconButton(
+                    tooltip: 'Clear date range',
+                    onPressed: onClearDate,
+                    icon: const Icon(Icons.close),
+                  ),
+              ],
+            ),
+          ),
+          if (hasFilters) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (selectedCategory != null)
+                  _ActiveFilterChip(
+                    label:
+                        '${selectedCategory!.emoji.isNotEmpty ? '${selectedCategory!.emoji} ' : ''}${selectedCategory!.name}',
+                    onDeleted: () => onCategoryChanged(null),
+                  ),
+                if (filters.dateRange != null)
+                  _ActiveFilterChip(
+                    label: dateLabel,
+                    onDeleted: onClearDate ?? () {},
+                  ),
+                if (filters.query.isNotEmpty)
+                  _ActiveFilterChip(
+                    label: '"${filters.query}"',
+                    onDeleted: () => onQueryChanged(''),
+                  ),
+              ],
+            ),
+          ],
+          AnimatedSwitcher(
+            duration: AppDurations.short,
+            child: hasFilters && onClearAll != null
+                ? Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: onClearAll,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reset filters'),
                     ),
-                  ],
-                  onChanged: onCategoryChanged,
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: onDateTap,
-                icon: const Icon(Icons.event),
-                label: Text(dateLabel),
-              ),
-              if (filters.dateRange != null)
-                IconButton(
-                  tooltip: 'Clear date range',
-                  onPressed: onClearDate,
-                  icon: const Icon(Icons.close),
-                ),
-              if (hasFilters)
-                TextButton.icon(
-                  onPressed: onClearAll,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Reset filters'),
-                ),
-            ],
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ActiveFilterChip extends StatelessWidget {
+  const _ActiveFilterChip({required this.label, required this.onDeleted});
+
+  final String label;
+  final VoidCallback onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InputChip(
+      label: Text(label),
+      onDeleted: onDeleted,
+      backgroundColor: theme.colorScheme.primary.withOpacity(0.08),
+      labelStyle: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.primary,
+      ),
+      deleteIconColor: theme.colorScheme.primary,
     );
   }
 }
@@ -361,12 +495,6 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text('Tap the + button to add your first expense.'),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: () => context.push('/add'),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Expense'),
-            ),
           ],
         ),
       ),

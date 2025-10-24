@@ -8,13 +8,13 @@ class ExpenseApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = AppTheme.theme;
+    final theme = AppTheme.light;
     final router = buildRouter();
 
     return MaterialApp.router(
       title: 'Expense Tracker',
       theme: theme,
-      darkTheme: AppTheme.darkTheme,
+      darkTheme: AppTheme.dark,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

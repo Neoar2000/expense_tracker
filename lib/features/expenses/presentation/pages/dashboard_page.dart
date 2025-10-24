@@ -1,26 +1,105 @@
+import 'dart:io' show Platform;
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive/hive.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../../../../app/navigation_observer.dart';
+import '../../../../core/theme/design_system.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/services/csv_exporter.dart';
 import '../../../../core/widgets/adaptive_dialog.dart';
-import '../../../../core/widgets/adaptive_button.dart';
 import '../../data/models/category.dart';
 import '../providers/stats_provider.dart';
 import '../providers/filters_provider.dart';
 import '../providers/expenses_provider.dart';
 
-class DashboardPage extends ConsumerWidget {
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends ConsumerState<DashboardPage>
+    with RouteAware, SingleTickerProviderStateMixin {
+  late final AnimationController _entryController;
+  late final Animation<double> _heroAnimation;
+  late final Animation<double> _kpiAnimation;
+  late final Animation<double> _chartsAnimation;
+  late final ProviderSubscription<MonthStats> _statsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _entryController = AnimationController(
+      vsync: this,
+      duration: AppDurations.long,
+    );
+    _heroAnimation = CurvedAnimation(
+      parent: _entryController,
+      curve: const Interval(0, 0.4, curve: Curves.easeOutCubic),
+    );
+    _kpiAnimation = CurvedAnimation(
+      parent: _entryController,
+      curve: const Interval(0.15, 0.55, curve: Curves.easeOutBack),
+    );
+    _chartsAnimation = CurvedAnimation(
+      parent: _entryController,
+      curve: const Interval(0.35, 1, curve: Curves.easeOutCubic),
+    );
+
+    _statsSubscription = ref.listenManual<MonthStats>(
+      monthStatsProvider,
+      (_, __) => _replayAnimations(),
+      fireImmediately: true,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _replayAnimations());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    _statsSubscription.close();
+    _entryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() => _replayAnimations();
+
+  @override
+  void didPush() => _replayAnimations();
+
+  void _replayAnimations() {
+    if (!mounted) return;
+    _entryController
+      ..stop()
+      ..reset()
+      ..forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final decorations = theme.extension<AppDecorations>();
     final stats = ref.watch(monthStatsProvider);
     final categoriesBox = Hive.box<Category>('categories');
-    final selectedMonth = ref.watch(filtersProvider).month;
+    final filterState = ref.watch(filtersProvider);
+    final selectedMonth = filterState.month;
 
     final byCategoryResolved = stats.byCategory.map((ct) {
       final cat = categoriesBox.values.firstWhere(
@@ -33,192 +112,292 @@ class DashboardPage extends ConsumerWidget {
 
     final totalFmt = formatMinor(stats.totalMinor);
     final topCatLabel = byCategoryResolved.isNotEmpty
-        ? byCategoryResolved.first.cat.name
-        : '—';
+        ? '${byCategoryResolved.first.cat.emoji.isNotEmpty ? '${byCategoryResolved.first.cat.emoji} ' : ''}${byCategoryResolved.first.cat.name}'
+        : 'No category yet';
+
+    final mediaPadding = MediaQuery.of(context).padding.top;
+    final topPadding = mediaPadding + kToolbarHeight + 16;
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Platform.isIOS
+            ? Colors.white.withOpacity(0.08)
+            : Colors.white.withOpacity(0.04),
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: const Text('Dashboard'),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(
+              sigmaX: Platform.isIOS ? 16 : 20,
+              sigmaY: Platform.isIOS ? 16 : 20,
+            ),
+            child: Container(
+              color: Platform.isIOS
+                  ? Colors.white.withOpacity(0.03)
+                  : Colors.white.withOpacity(0.06),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            tooltip: 'View Expenses',
+            tooltip: 'View expenses',
             onPressed: () => context.push('/expenses'),
-            icon: const Icon(Icons.list_alt),
+            icon: const Icon(Icons.list_rounded),
           ),
-          IconButton(
-            tooltip: 'Add Expense',
+          const SizedBox(width: 4),
+          IconButton.filled(
+            tooltip: 'Add expense',
             onPressed: () => context.push('/add'),
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_rounded),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Stack(
         children: [
-          // Month selector + Export
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: 'Previous month',
-                    onPressed: () =>
-                        ref.read(filtersProvider.notifier).prevMonth(),
-                    icon: const Icon(Icons.chevron_left),
+          Positioned(
+            top: -220,
+            left: -120,
+            right: -120,
+            height: 420,
+            child: AnimatedBuilder(
+              animation: _heroAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: (_heroAnimation.value * 0.6) + 0.2,
+                  child: Transform.scale(
+                    scale: 0.95 + (_heroAnimation.value * 0.05),
+                    child: child,
                   ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        _formatMonth(selectedMonth),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                );
+              },
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient:
+                      decorations?.heroGradient as LinearGradient? ??
+                      const LinearGradient(
+                        colors: [Color(0xFF5C6AC4), Color(0xFF8F7CFF)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Next month',
-                    onPressed: () =>
-                        ref.read(filtersProvider.notifier).nextMonth(),
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Export (adaptive)
-                  AdaptiveButton(
-                    label: 'Export',
-                    icon: Icons.ios_share,
-                    onPressed: stats.count == 0
-                        ? null
-                        : () async {
-                            final all = ref.read(expensesProvider);
-                            final path = await CsvExporter.exportMonthly(
-                              all,
-                              selectedMonth,
-                            );
-                            if (context.mounted) {
-                              await AdaptiveDialog.alert(
-                                context,
-                                'Export complete',
-                                'Saved to: $path',
-                              );
-                            }
-                          },
-                  ),
-                ],
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-
-          // KPI cards
-          Wrap(
-            runSpacing: 12,
-            spacing: 12,
+          ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16, topPadding, 16, 32),
             children: [
-              _KpiCard(title: 'Total', value: totalFmt),
-              _KpiCard(title: 'Entries', value: stats.count.toString()),
-              _KpiCard(title: 'Top category', value: topCatLabel),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Pie Chart
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'By Category',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              AnimatedBuilder(
+                animation: _heroAnimation,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _heroAnimation.value,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - _heroAnimation.value) * 24),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _HeroCard(
+                  monthLabel: _formatMonth(selectedMonth),
+                  totalLabel: totalFmt,
+                  entryCount: stats.count,
+                  topCategory: topCatLabel,
+                  canExport: stats.count > 0,
+                  onPrevMonth: () =>
+                      ref.read(filtersProvider.notifier).prevMonth(),
+                  onNextMonth: () =>
+                      ref.read(filtersProvider.notifier).nextMonth(),
+                  onExport: stats.count == 0
+                      ? null
+                      : () async {
+                          final all = ref.read(expensesProvider);
+                          final path = await CsvExporter.exportMonthly(
+                            all,
+                            selectedMonth,
+                          );
+                          if (!context.mounted || path == null) return;
+                          await AdaptiveDialog.alert(
+                            context,
+                            'Export complete',
+                            'Saved to: $path',
+                          );
+                        },
+                ),
+              ),
+              const SizedBox(height: 20),
+              AnimatedBuilder(
+                animation: _kpiAnimation,
+                builder: (context, child) {
+                  final progress = _kpiAnimation.value.clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: progress,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - progress) * 16),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _KpiGrid(
+                  items: [
+                    (
+                      title: 'Total spend',
+                      value: totalFmt,
+                      icon: Icons.pie_chart_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                    (
+                      title: 'Entries',
+                      value: stats.count.toString(),
+                      icon: Icons.receipt_long,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                    (
+                      title: 'Top category',
+                      value: topCatLabel,
+                      icon: Icons.star_rounded,
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              AnimatedBuilder(
+                animation: _chartsAnimation,
+                builder: (context, child) {
+                  final progress = _chartsAnimation.value.clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: progress,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - progress) * 12),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _ChartCard(
+                  title: 'By category',
+                  trailing: Text(
+                    stats.count == 0
+                        ? 'No entries'
+                        : '${stats.count} purchases',
+                    style: theme.textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 220,
+                  child: SizedBox(
+                    height: 240,
                     child: byCategoryResolved.isEmpty
-                        ? const Center(child: Text('No data'))
+                        ? const Center(child: Text('No data yet'))
                         : PieChart(
                             PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 32,
-                              sections: _buildPieSections(byCategoryResolved),
+                              sectionsSpace: 4,
+                              centerSpaceRadius: 36,
+                              sections: _buildPieSections(
+                                byCategoryResolved,
+                                _chartsAnimation.value,
+                              ),
                             ),
                           ),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
+                  footer: Wrap(
                     spacing: 12,
                     runSpacing: 6,
                     children: byCategoryResolved.map((e) {
+                      final label =
+                          '${e.cat.emoji.isNotEmpty ? '${e.cat.emoji} ' : ''}${e.cat.name}';
                       return _LegendDot(
                         color: Color(e.cat.color),
-                        label:
-                            '${e.cat.emoji.isNotEmpty ? '${e.cat.emoji} ' : ''}${e.cat.name}',
+                        label: label,
                       );
                     }).toList(),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Trend Chart
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Daily Trend',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              const SizedBox(height: 16),
+              AnimatedBuilder(
+                animation: _chartsAnimation,
+                builder: (context, child) {
+                  final progress = _chartsAnimation.value.clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: progress,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - progress) * 12),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _ChartCard(
+                  title: 'Daily trend',
+                  trailing: Text(
+                    'Avg ${stats.dailyTrend.isEmpty ? '—' : formatMinor(stats.totalMinor ~/ (stats.dailyTrend.isEmpty ? 1 : stats.dailyTrend.length))}/day',
+                    style: theme.textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 220,
+                  child: SizedBox(
+                    height: 240,
                     child: stats.dailyTrend.isEmpty
-                        ? const Center(child: Text('No data'))
-                        : LineChart(_buildLineData(stats.dailyTrend)),
+                        ? const Center(child: Text('No data yet'))
+                        : LineChart(
+                            _buildLineData(
+                              stats.dailyTrend,
+                              theme,
+                              _chartsAnimation.value,
+                            ),
+                          ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // --- Chart Helpers ---
   List<PieChartSectionData> _buildPieSections(
     List<({Category cat, int totalMinor})> items,
+    double progress,
   ) {
     final total = items.fold<int>(0, (s, e) => s + e.totalMinor);
-    if (total == 0) return [PieChartSectionData(value: 1, title: '—')];
+    if (total == 0) {
+      return [
+        PieChartSectionData(
+          value: 1,
+          title: '—',
+          color: Colors.grey.shade200,
+          titleStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ];
+    }
+
+    final safeProgress = progress.clamp(0.05, 1.0).toDouble();
 
     return items.map((e) {
       final pct = (e.totalMinor / total) * 100;
       return PieChartSectionData(
-        value: e.totalMinor.toDouble(),
+        value: e.totalMinor.toDouble() * safeProgress,
         color: Color(e.cat.color),
         title: '${pct.toStringAsFixed(0)}%',
-        radius: 66,
-        titleStyle: const TextStyle(fontWeight: FontWeight.w600),
+        radius: 70,
+        titleStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
       );
     }).toList();
   }
 
-  LineChartData _buildLineData(List<TrendPoint> points) {
+  LineChartData _buildLineData(
+    List<TrendPoint> points,
+    ThemeData theme,
+    double progress,
+  ) {
     final spots = <FlSpot>[];
     double minX = 0, maxX = 0, minY = 0, maxY = 0;
 
     for (var i = 0; i < points.length; i++) {
-      final y = points[i].totalMinor / 100.0;
+      final y = (points[i].totalMinor / 100.0) * progress.clamp(0, 1);
       spots.add(FlSpot(i.toDouble(), y));
       if (i == 0) {
         minX = maxX = 0;
@@ -232,17 +411,34 @@ class DashboardPage extends ConsumerWidget {
 
     final yPad = (maxY - minY).clamp(5, 50);
     minY = (minY - yPad).clamp(0, double.infinity);
-    maxY = maxY + yPad;
+    maxY = maxY == minY ? minY + 10 : maxY + yPad;
 
     return LineChartData(
       minX: minX,
       maxX: maxX,
       minY: minY,
-      maxY: maxY == minY ? minY + 10 : maxY,
-      gridData: const FlGridData(show: true),
+      maxY: maxY,
+      gridData: FlGridData(
+        show: true,
+        horizontalInterval: ((maxY - minY) / 4)
+            .clamp(1, double.infinity)
+            .toDouble(),
+        getDrawingHorizontalLine: (value) => FlLine(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+          strokeWidth: 1,
+        ),
+        drawVerticalLine: false,
+      ),
       titlesData: FlTitlesData(
-        leftTitles: const AxisTitles(
-          sideTitles: SideTitles(showTitles: true, reservedSize: 36),
+        leftTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 40,
+            getTitlesWidget: (value, meta) => Text(
+              formatMinor((value * 100).round()),
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
         ),
         rightTitles: const AxisTitles(
           sideTitles: SideTitles(showTitles: false),
@@ -267,21 +463,37 @@ class DashboardPage extends ConsumerWidget {
           ),
         ),
       ),
-      borderData: FlBorderData(show: true),
+      borderData: FlBorderData(show: false),
       lineBarsData: [
         LineChartBarData(
           spots: spots,
           isCurved: true,
-          barWidth: 3,
+          barWidth: 4,
+          isStrokeCapRound: true,
+          gradient: LinearGradient(
+            colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          belowBarData: BarAreaData(
+            show: true,
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primary.withOpacity(0.2),
+                Colors.transparent,
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
           dotData: const FlDotData(show: false),
         ),
       ],
     );
   }
 
-  String _formatMonth(DateTime m) {
-    return '${_monthNames[m.month - 1]} ${m.year}';
-  }
+  String _formatMonth(DateTime m) =>
+      '${_monthNames[m.month - 1]} ${m.year.toString()}';
 
   static const _monthNames = [
     'Jan',
@@ -299,36 +511,284 @@ class DashboardPage extends ConsumerWidget {
   ];
 }
 
-// --- UI Helpers ---
-class _KpiCard extends StatelessWidget {
-  final String title;
-  final String value;
-  const _KpiCard({super.key, required this.title, required this.value});
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.monthLabel,
+    required this.totalLabel,
+    required this.entryCount,
+    required this.topCategory,
+    required this.canExport,
+    required this.onPrevMonth,
+    required this.onNextMonth,
+    required this.onExport,
+  });
+
+  final String monthLabel;
+  final String totalLabel;
+  final int entryCount;
+  final String topCategory;
+  final bool canExport;
+  final VoidCallback onPrevMonth;
+  final VoidCallback onNextMonth;
+  final VoidCallback? onExport;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final theme = Theme.of(context);
+    final decorations = theme.extension<AppDecorations>();
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient:
+            decorations?.heroGradient as LinearGradient? ??
+            const LinearGradient(
+              colors: [Color(0xFF5C6AC4), Color(0xFF8F7CFF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: decorations?.glow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                title,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              _MonthButton(icon: Icons.chevron_left, onTap: onPrevMonth),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Spending snapshot',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      monthLabel,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+              _MonthButton(icon: Icons.chevron_right, onTap: onNextMonth),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Total spend',
+            style: theme.textTheme.labelLarge?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 6),
+          AnimatedSwitcher(
+            duration: AppDurations.medium,
+            transitionBuilder: (child, animation) =>
+                ScaleTransition(scale: animation, child: child),
+            child: Text(
+              totalLabel,
+              key: ValueKey(totalLabel),
+              style: theme.textTheme.displaySmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              _InsightChip(
+                icon: Icons.receipt_long,
+                label: '$entryCount entries',
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _InsightChip(
+                  icon: Icons.star_rounded,
+                  label: topCategory,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: canExport ? onExport : null,
+            icon: const Icon(Icons.ios_share),
+            label: const Text('Export CSV'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.1),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthButton extends StatelessWidget {
+  const _MonthButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      onPressed: onTap,
+      icon: Icon(icon),
+      style: IconButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.white.withOpacity(0.12),
+        shape: const CircleBorder(),
+      ),
+    );
+  }
+}
+
+class _KpiGrid extends StatelessWidget {
+  const _KpiGrid({required this.items});
+
+  final List<({String title, String value, IconData icon, Color color})> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        final maxWidth = constraints.maxWidth;
+        final bool singleColumn = maxWidth < 360;
+        final double tileWidth = singleColumn
+            ? maxWidth
+            : (maxWidth - spacing) / 2;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: items
+              .map(
+                (item) => SizedBox(
+                  width: tileWidth,
+                  child: _KpiCard(
+                    title: item.title,
+                    value: item.value,
+                    icon: item.icon,
+                    color: item.color,
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surface,
+        border: Border.all(color: theme.colorScheme.surfaceVariant),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withOpacity(0.15),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              letterSpacing: 1.2,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartCard extends StatelessWidget {
+  const _ChartCard({
+    required this.title,
+    required this.child,
+    this.footer,
+    this.trailing,
+  });
+
+  final String title;
+  final Widget child;
+  final Widget? footer;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            const SizedBox(height: 12),
+            child,
+            if (footer != null) ...[const SizedBox(height: 16), footer!],
+          ],
         ),
       ),
     );
@@ -336,23 +796,63 @@ class _KpiCard extends StatelessWidget {
 }
 
 class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
   final Color color;
   final String label;
-  const _LegendDot({super.key, required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(label),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withOpacity(0.1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightChip extends StatelessWidget {
+  const _InsightChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withOpacity(0.12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

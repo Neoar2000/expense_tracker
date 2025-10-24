@@ -3,12 +3,14 @@ import 'package:go_router/go_router.dart';
 import '../features/expenses/presentation/pages/dashboard_page.dart';
 import '../features/expenses/presentation/pages/expenses_list_page.dart';
 import '../features/expenses/presentation/pages/add_edit_expense_page.dart';
+import 'navigation_observer.dart';
 
 /// Configures all app routes and enables proper push/pop navigation
 /// so that iOS back swipe and Android system back work out of the box.
 GoRouter buildRouter() {
   return GoRouter(
     initialLocation: '/',
+    observers: [routeObserver],
     routes: [
       GoRoute(
         path: '/',

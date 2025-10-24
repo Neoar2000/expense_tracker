@@ -6,8 +6,9 @@ import '../../features/expenses/data/models/expense.dart';
 
 class CsvExporter {
   /// Exports all expenses within [month] (first day of month) to a CSV,
-  /// returns the file path and triggers share sheet.
-  static Future<String> exportMonthly(
+  /// returns the file path when the user completes sharing.
+  /// Returns `null` if the share sheet is dismissed/cancelled.
+  static Future<String?> exportMonthly(
     List<Expense> all,
     DateTime month, {
     String currencySymbol = '\$',
@@ -40,10 +41,20 @@ class CsvExporter {
     await file.writeAsString(csv);
 
     // Share the file (shows native share sheet)
-    await Share.shareXFiles([XFile(file.path)],
-        text: 'Monthly expenses: $filename');
+    final result = await Share.shareXFiles(
+      [XFile(file.path)],
+      text: 'Monthly expenses: $filename',
+    );
 
-    return file.path;
+    if (result.status == ShareResultStatus.success) {
+      return file.path;
+    }
+
+    // User dismissed/cancelled: clean up temp file and report null
+    if (await file.exists()) {
+      await file.delete();
+    }
+    return null;
   }
 
   static String _yyyyMmDd(DateTime d) =>

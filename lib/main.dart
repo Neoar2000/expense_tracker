@@ -7,6 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app/router.dart';
+import 'app/theme.dart';
+import 'core/theme/design_system.dart';
 import 'features/expenses/data/models/expense.dart';
 import 'features/expenses/data/models/category.dart';
 import 'features/expenses/data/models/default_categories.dart';
@@ -35,8 +37,9 @@ Future<void> main() async {
   if (categoriesBox.isEmpty) {
     categoriesBox.addAll(defaults);
   } else {
-    final existingIds =
-        categoriesBox.values.map((category) => category.id).toSet();
+    final existingIds = categoriesBox.values
+        .map((category) => category.id)
+        .toSet();
     for (final cat in defaults) {
       if (!existingIds.contains(cat.id)) {
         categoriesBox.add(cat);
@@ -64,8 +67,21 @@ class ExpenseApp extends StatelessWidget {
         routerConfig: router,
         theme: const CupertinoThemeData(
           brightness: Brightness.light,
-          primaryColor: CupertinoColors.activeBlue,
-          barBackgroundColor: CupertinoColors.systemGrey6,
+          primaryColor: AppColors.primary,
+          scaffoldBackgroundColor: AppColors.background,
+          barBackgroundColor: Color(0xFFF1F2F8),
+          textTheme: CupertinoTextThemeData(
+            navTitleTextStyle: TextStyle(
+              fontFamily: '.SF Pro Display',
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            ),
+            navLargeTitleTextStyle: TextStyle(
+              fontFamily: '.SF Pro Display',
+              fontSize: 34,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
         // Provide Material/Cupertino/Widget localizations so Material widgets have strings, etc.
         localizationsDelegates: const [
@@ -94,18 +110,15 @@ class ExpenseApp extends StatelessWidget {
         title: 'Expense Tracker',
         debugShowCheckedModeBanner: false,
         routerConfig: router,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        locale: const Locale('en'),
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
         ],
-        supportedLocales: const [
-          Locale('en'),
-        ],
+        supportedLocales: const [Locale('en')],
       );
     }
   }

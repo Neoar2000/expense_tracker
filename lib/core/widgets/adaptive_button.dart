@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-enum AdaptiveButtonStyle { primary, secondary, text }
+enum AdaptiveButtonStyle { primary, secondary, text, danger }
 
 class AdaptiveButton extends StatelessWidget {
   final String label;
@@ -50,6 +50,23 @@ class AdaptiveButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: child,
           );
+        case AdaptiveButtonStyle.danger:
+          return CupertinoButton(
+            onPressed: onPressed,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            color: CupertinoColors.systemRed,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: CupertinoColors.white),
+                  const SizedBox(width: 6),
+                ],
+                Text(label, style: const TextStyle(color: CupertinoColors.white)),
+              ],
+            ),
+          );
       }
     } else {
       // ----- Material
@@ -71,6 +88,15 @@ class AdaptiveButton extends StatelessWidget {
           return OutlinedButton(onPressed: onPressed, child: content);
         case AdaptiveButtonStyle.text:
           return TextButton(onPressed: onPressed, child: content);
+        case AdaptiveButtonStyle.danger:
+          return FilledButton(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: content,
+          );
       }
     }
   }
@@ -83,6 +109,8 @@ class AdaptiveButton extends StatelessWidget {
         return CupertinoColors.black;
       case AdaptiveButtonStyle.text:
         return CupertinoColors.activeBlue;
+      case AdaptiveButtonStyle.danger:
+        return CupertinoColors.white;
     }
   }
 }
