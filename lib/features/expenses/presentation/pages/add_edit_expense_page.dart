@@ -169,7 +169,7 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
 
               // Category
               DropdownButtonFormField<Category>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   prefixIcon: Icon(Icons.category),

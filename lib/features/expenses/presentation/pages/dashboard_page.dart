@@ -63,11 +63,8 @@ class DashboardPage extends ConsumerWidget {
                 children: [
                   IconButton(
                     tooltip: 'Previous month',
-                    onPressed: () {
-                      ref.read(filtersProvider.notifier).state = ref
-                          .read(filtersProvider)
-                          .prevMonth();
-                    },
+                    onPressed: () =>
+                        ref.read(filtersProvider.notifier).prevMonth(),
                     icon: const Icon(Icons.chevron_left),
                   ),
                   Expanded(
@@ -83,11 +80,8 @@ class DashboardPage extends ConsumerWidget {
                   ),
                   IconButton(
                     tooltip: 'Next month',
-                    onPressed: () {
-                      ref.read(filtersProvider.notifier).state = ref
-                          .read(filtersProvider)
-                          .nextMonth();
-                    },
+                    onPressed: () =>
+                        ref.read(filtersProvider.notifier).nextMonth(),
                     icon: const Icon(Icons.chevron_right),
                   ),
                   const SizedBox(width: 8),

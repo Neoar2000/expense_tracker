@@ -9,6 +9,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app/router.dart';
 import 'features/expenses/data/models/expense.dart';
 import 'features/expenses/data/models/category.dart';
+import 'features/expenses/data/models/default_categories.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,22 +31,17 @@ Future<void> main() async {
 
   // Seed default categories if empty
   final categoriesBox = Hive.box<Category>('categories');
+  final defaults = defaultCategories();
   if (categoriesBox.isEmpty) {
-    categoriesBox.addAll([
-      Category(id: 'food', name: 'Food', color: 0xFFE57373, emoji: '🍔'),
-      Category(
-          id: 'transport', name: 'Transport', color: 0xFF64B5F6, emoji: '🚌'),
-      Category(id: 'housing', name: 'Housing', color: 0xFFFFB74D, emoji: '🏠'),
-      Category(
-          id: 'shopping', name: 'Shopping', color: 0xFF81C784, emoji: '🛍️'),
-      Category(id: 'health', name: 'Health', color: 0xFFBA68C8, emoji: '💊'),
-      Category(
-          id: 'entertainment',
-          name: 'Entertainment',
-          color: 0xFFA1887F,
-          emoji: '🎮'),
-      Category(id: 'other', name: 'Other', color: 0xFF90A4AE, emoji: '✨'),
-    ]);
+    categoriesBox.addAll(defaults);
+  } else {
+    final existingIds =
+        categoriesBox.values.map((category) => category.id).toSet();
+    for (final cat in defaults) {
+      if (!existingIds.contains(cat.id)) {
+        categoriesBox.add(cat);
+      }
+    }
   }
 
   runApp(const ProviderScope(child: ExpenseApp()));

@@ -11,6 +11,17 @@ class HiveExpenseDataSource {
   Future<void> add(Expense e) => expensesBox.add(e);
   Future<void> deleteAt(int index) => expensesBox.deleteAt(index);
 
+  Future<void> deleteById(String id) async {
+    final key = expensesBox.keys.firstWhere((k) {
+      final value = expensesBox.get(k);
+      return value?.id == id;
+    }, orElse: () => null);
+
+    if (key != null) {
+      await expensesBox.delete(key);
+    }
+  }
+
   Future<void> update(String id, Expense updated) async {
     final key = expensesBox.keys.firstWhere((k) {
       final value = expensesBox.get(k);
