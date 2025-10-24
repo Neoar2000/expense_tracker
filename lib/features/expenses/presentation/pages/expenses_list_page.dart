@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/widgets/adaptive_dialog.dart';
 import '../../data/models/expense.dart';
 import '../providers/expenses_provider.dart';
 import '../widgets/expense_tile.dart';
@@ -10,24 +11,12 @@ class ExpensesListPage extends ConsumerWidget {
   const ExpensesListPage({super.key});
 
   Future<bool> _confirmDelete(BuildContext context) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Delete expense?'),
-            content: const Text('This action cannot be undone.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+    return AdaptiveDialog.confirm(
+      context,
+      title: 'Delete expense?',
+      message: 'This action cannot be undone.',
+      okText: 'Delete',
+    );
   }
 
   @override
@@ -40,20 +29,11 @@ class ExpensesListPage extends ConsumerWidget {
         title: const Text('Expenses'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // ✅ Try to pop normally first (gesture/back works too)
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              // fallback only if no previous route
-              context.go('/');
-            }
-          },
+          onPressed: () => context.pop(), // native back
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            context.push('/add'), // ✅ forward navigation keeps history
+        onPressed: () => context.push('/add'), // keep push so back works
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
@@ -78,24 +58,28 @@ class ExpensesListPage extends ConsumerWidget {
                     ),
                   ),
 
-                  // 🧠 Confirm before deleting
+                  // confirm before deleting (adaptive)
                   confirmDismiss: (_) => _confirmDelete(context),
 
-                  // ✅ Delete only after animation completes
+                  // delete after animation
                   onDismissed: (_) async {
                     await controller.deleteAt(index);
+                    // SnackBar is fine; on iOS we injected a ScaffoldMessenger in main.dart
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content:
-                            Text('Deleted expense #${e.id.substring(0, 6)}'),
+                        content: Text(
+                          'Deleted expense #${e.id.substring(0, 6)}',
+                        ),
                       ),
                     );
                   },
 
-                  // ✅ Card outside ExpenseTile keeps animation stable
+                  // tile inside a Card keeps animation stable
                   child: Card(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     child: ExpenseTile(expense: e),
                   ),
                 );
@@ -125,9 +109,10 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             const Text('Tap the + button to add your first expense.'),
             const SizedBox(height: 20),
+
+            // You can keep this Material button or switch to AdaptiveButton if you prefer.
             FilledButton.icon(
-              onPressed: () =>
-                  context.push('/add'), // ✅ push keeps back behavior
+              onPressed: () => context.push('/add'),
               icon: const Icon(Icons.add),
               label: const Text('Add Expense'),
             ),

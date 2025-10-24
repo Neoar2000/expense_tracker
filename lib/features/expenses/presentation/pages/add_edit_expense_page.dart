@@ -5,6 +5,9 @@ import 'package:uuid/uuid.dart';
 import 'package:hive/hive.dart';
 
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/adaptive_dialog.dart';
+import '../../../../core/widgets/adaptive_button.dart';
+
 import '../../data/models/expense.dart';
 import '../../data/models/category.dart';
 import '../providers/expenses_provider.dart';
@@ -32,13 +35,16 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
     // If editing, fetch the expense and prefill
     if (widget.expenseId != null) {
       final all = ref.read(expensesProvider);
-      _original = all.firstWhere(
-        (e) => e.id == widget.expenseId,
-        orElse: () => null as Expense, // will never hit due to routing; safe
-      );
+      // Routing ensures id exists; guard anyway
+      try {
+        _original = all.firstWhere((e) => e.id == widget.expenseId);
+      } catch (_) {
+        _original = null;
+      }
+
       if (_original != null) {
-        _amountController.text =
-            (_original!.amountMinor / 100.0).toStringAsFixed(2);
+        _amountController.text = (_original!.amountMinor / 100.0)
+            .toStringAsFixed(2);
         _noteController.text = _original!.note;
         _selectedDate = _original!.date;
 
@@ -46,7 +52,11 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
         _selectedCategory = catBox.values.firstWhere(
           (c) => c.id == _original!.categoryId,
           orElse: () => Category(
-              id: 'other', name: 'Other', color: 0xFF90A4AE, emoji: '✨'),
+            id: 'other',
+            name: 'Other',
+            color: 0xFF90A4AE,
+            emoji: '✨',
+          ),
         );
       }
     }
@@ -76,7 +86,7 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/');
+              context.go('/'); // fallback if opened directly
             }
           },
         ),
@@ -86,22 +96,12 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
               tooltip: 'Delete',
               icon: const Icon(Icons.delete),
               onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Delete expense?'),
-                        content: const Text('This action cannot be undone.'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel')),
-                          FilledButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete')),
-                        ],
-                      ),
-                    ) ??
-                    false;
+                final confirmed = await AdaptiveDialog.confirm(
+                  context,
+                  title: 'Delete expense?',
+                  message: 'This action cannot be undone.',
+                  okText: 'Delete',
+                );
                 if (!confirmed) return;
 
                 // Find index of the original item in provider state
@@ -110,10 +110,15 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                 if (idx != -1) {
                   await controller.deleteAt(idx);
                   if (mounted) {
+                    // Works on iOS too; ScaffoldMessenger is injected in main.dart builder
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Expense deleted')),
                     );
-                    context.go('/'); // back to dashboard
+                    if (context.canPop()) {
+                      context.pop(); // go back to previous page
+                    } else {
+                      context.go('/'); // fallback
+                    }
                   }
                 }
               },
@@ -129,8 +134,9 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
               // Amount
               TextFormField(
                 controller: _amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Amount (USD)',
                   prefixIcon: Icon(Icons.attach_money),
@@ -163,21 +169,23 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
 
               // Category
               DropdownButtonFormField<Category>(
-                initialValue: _selectedCategory,
+                value: _selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   prefixIcon: Icon(Icons.category),
                 ),
                 items: categories
-                    .map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Row(
-                            children: [
-                              Text(c.emoji.isNotEmpty ? '${c.emoji} ' : ''),
-                              Text(c.name),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (c) => DropdownMenuItem(
+                        value: c,
+                        child: Row(
+                          children: [
+                            Text(c.emoji.isNotEmpty ? '${c.emoji} ' : ''),
+                            Text(c.name),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (v) => setState(() => _selectedCategory = v),
                 validator: (v) => v == null ? 'Please select a category' : null,
@@ -195,30 +203,52 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
               ),
               const SizedBox(height: 24),
 
-              // Save
-              FilledButton.icon(
-                icon: const Icon(Icons.save),
-                label: Text(isEdit ? 'Save Changes' : 'Save Expense'),
-                onPressed: () async {
-                  if (!(_formKey.currentState?.validate() ?? false)) return;
+              // Actions (adaptive)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AdaptiveButton(
+                    label: 'Cancel',
+                    style: AdaptiveButtonStyle.text,
+                    onPressed: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/');
+                      }
+                    },
+                  ),
+                  AdaptiveButton(
+                    label: isEdit ? 'Save Changes' : 'Save Expense',
+                    icon: Icons.save,
+                    onPressed: () async {
+                      if (!(_formKey.currentState?.validate() ?? false)) return;
 
-                  final amount = double.parse(_amountController.text);
-                  final updated = Expense(
-                    id: _original?.id ?? const Uuid().v4(),
-                    amountMinor: (amount * 100).round(),
-                    categoryId: _selectedCategory!.id,
-                    note: _noteController.text,
-                    date: _selectedDate,
-                  );
+                      final amount = double.parse(_amountController.text);
+                      final updated = Expense(
+                        id: _original?.id ?? const Uuid().v4(),
+                        amountMinor: (amount * 100).round(),
+                        categoryId: _selectedCategory!.id,
+                        note: _noteController.text,
+                        date: _selectedDate,
+                      );
 
-                  if (isEdit) {
-                    await controller.update(updated);
-                  } else {
-                    await controller.add(updated);
-                  }
+                      if (isEdit) {
+                        await controller.update(updated);
+                      } else {
+                        await controller.add(updated);
+                      }
 
-                  if (mounted) context.go('/');
-                },
+                      if (!mounted) return;
+                      // Return to the previous screen naturally
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/');
+                      }
+                    },
+                  ),
+                ],
               ),
             ],
           ),

@@ -6,6 +6,8 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/services/csv_exporter.dart';
+import '../../../../core/widgets/adaptive_dialog.dart';
+import '../../../../core/widgets/adaptive_button.dart';
 import '../../data/models/category.dart';
 import '../providers/stats_provider.dart';
 import '../providers/filters_provider.dart';
@@ -23,19 +25,16 @@ class DashboardPage extends ConsumerWidget {
     final byCategoryResolved = stats.byCategory.map((ct) {
       final cat = categoriesBox.values.firstWhere(
         (c) => c.id == ct.categoryId,
-        orElse: () => Category(
-          id: 'other',
-          name: 'Other',
-          color: 0xFF90A4AE,
-          emoji: '✨',
-        ),
+        orElse: () =>
+            Category(id: 'other', name: 'Other', color: 0xFF90A4AE, emoji: '✨'),
       );
       return (cat: cat, totalMinor: ct.totalMinor);
     }).toList();
 
     final totalFmt = formatMinor(stats.totalMinor);
-    final topCatLabel =
-        byCategoryResolved.isNotEmpty ? byCategoryResolved.first.cat.name : '—';
+    final topCatLabel = byCategoryResolved.isNotEmpty
+        ? byCategoryResolved.first.cat.name
+        : '—';
 
     return Scaffold(
       appBar: AppBar(
@@ -43,12 +42,12 @@ class DashboardPage extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'View Expenses',
-            onPressed: () => context.push('/expenses'), // ✅ push keeps stack
+            onPressed: () => context.push('/expenses'),
             icon: const Icon(Icons.list_alt),
           ),
           IconButton(
             tooltip: 'Add Expense',
-            onPressed: () => context.push('/add'), // ✅ push keeps back gesture
+            onPressed: () => context.push('/add'),
             icon: const Icon(Icons.add),
           ),
         ],
@@ -65,8 +64,9 @@ class DashboardPage extends ConsumerWidget {
                   IconButton(
                     tooltip: 'Previous month',
                     onPressed: () {
-                      ref.read(filtersProvider.notifier).state =
-                          ref.read(filtersProvider).prevMonth();
+                      ref.read(filtersProvider.notifier).state = ref
+                          .read(filtersProvider)
+                          .prevMonth();
                     },
                     icon: const Icon(Icons.chevron_left),
                   ),
@@ -84,13 +84,18 @@ class DashboardPage extends ConsumerWidget {
                   IconButton(
                     tooltip: 'Next month',
                     onPressed: () {
-                      ref.read(filtersProvider.notifier).state =
-                          ref.read(filtersProvider).nextMonth();
+                      ref.read(filtersProvider.notifier).state = ref
+                          .read(filtersProvider)
+                          .nextMonth();
                     },
                     icon: const Icon(Icons.chevron_right),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton.icon(
+
+                  // Export (adaptive)
+                  AdaptiveButton(
+                    label: 'Export',
+                    icon: Icons.ios_share,
                     onPressed: stats.count == 0
                         ? null
                         : () async {
@@ -100,15 +105,13 @@ class DashboardPage extends ConsumerWidget {
                               selectedMonth,
                             );
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Exported CSV to: $path'),
-                                ),
+                              await AdaptiveDialog.alert(
+                                context,
+                                'Export complete',
+                                'Saved to: $path',
                               );
                             }
                           },
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text('Export'),
                   ),
                 ],
               ),
@@ -199,7 +202,8 @@ class DashboardPage extends ConsumerWidget {
 
   // --- Chart Helpers ---
   List<PieChartSectionData> _buildPieSections(
-      List<({Category cat, int totalMinor})> items) {
+    List<({Category cat, int totalMinor})> items,
+  ) {
     final total = items.fold<int>(0, (s, e) => s + e.totalMinor);
     if (total == 0) return [PieChartSectionData(value: 1, title: '—')];
 
@@ -246,8 +250,9 @@ class DashboardPage extends ConsumerWidget {
         leftTitles: const AxisTitles(
           sideTitles: SideTitles(showTitles: true, reservedSize: 36),
         ),
-        rightTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles: const AxisTitles(
+          sideTitles: SideTitles(showTitles: false),
+        ),
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         bottomTitles: AxisTitles(
           sideTitles: SideTitles(
@@ -296,7 +301,7 @@ class DashboardPage extends ConsumerWidget {
     'Sep',
     'Oct',
     'Nov',
-    'Dec'
+    'Dec',
   ];
 }
 
@@ -304,7 +309,7 @@ class DashboardPage extends ConsumerWidget {
 class _KpiCard extends StatelessWidget {
   final String title;
   final String value;
-  const _KpiCard({required this.title, required this.value});
+  const _KpiCard({super.key, required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -316,12 +321,18 @@ class _KpiCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
               const SizedBox(height: 6),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
         ),
@@ -333,7 +344,7 @@ class _KpiCard extends StatelessWidget {
 class _LegendDot extends StatelessWidget {
   final Color color;
   final String label;
-  const _LegendDot({required this.color, required this.label});
+  const _LegendDot({super.key, required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
