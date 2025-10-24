@@ -297,7 +297,7 @@ class _FiltersBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: theme.colorScheme.surfaceVariant),
+        border: Border.all(color: theme.colorScheme.surfaceContainerHighest),
         boxShadow: [
           BoxShadow(
             color: theme.colorScheme.primary.withOpacity(0.05),
@@ -338,7 +338,7 @@ class _FiltersBar extends StatelessWidget {
                   width: 240,
                   child: DropdownButtonFormField<String?>(
                     key: ValueKey<String?>(filters.categoryId),
-                    value: filters.categoryId,
+                    initialValue: filters.categoryId,
                     decoration: const InputDecoration(
                       labelText: 'Category',
                       prefixIcon: Icon(Icons.category_outlined),
@@ -383,7 +383,7 @@ class _FiltersBar extends StatelessWidget {
                 if (selectedCategory != null)
                   _ActiveFilterChip(
                     label:
-                        '${selectedCategory!.emoji.isNotEmpty ? '${selectedCategory!.emoji} ' : ''}${selectedCategory!.name}',
+                        '${selectedCategory.emoji.isNotEmpty ? '${selectedCategory.emoji} ' : ''}${selectedCategory.name}',
                     onDeleted: () => onCategoryChanged(null),
                   ),
                 if (filters.dateRange != null)
@@ -481,20 +481,20 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.inbox_outlined, size: 48),
-            const SizedBox(height: 12),
-            const Text(
+            Icon(Icons.inbox_outlined, size: 48),
+            SizedBox(height: 12),
+            Text(
               'No expenses yet',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 8),
-            const Text('Tap the + button to add your first expense.'),
+            SizedBox(height: 8),
+            Text('Tap the + button to add your first expense.'),
           ],
         ),
       ),

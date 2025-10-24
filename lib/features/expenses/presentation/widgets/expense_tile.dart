@@ -17,12 +17,8 @@ class ExpenseTile extends StatelessWidget {
     final categoriesBox = Hive.box<Category>('categories');
     final cat = categoriesBox.values.firstWhere(
       (c) => c.id == expense.categoryId,
-      orElse: () => Category(
-        id: 'other',
-        name: 'Other',
-        color: 0xFF90A4AE,
-        emoji: '✨',
-      ),
+      orElse: () =>
+          Category(id: 'other', name: 'Other', color: 0xFF90A4AE, emoji: '✨'),
     );
     final accent = Color(cat.color);
 
@@ -46,7 +42,7 @@ class ExpenseTile extends StatelessWidget {
               ),
             ],
             border: Border.all(
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
             ),
           ),
           child: Row(
@@ -57,10 +53,7 @@ class ExpenseTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [
-                      accent,
-                      accent.withOpacity(0.7),
-                    ],
+                    colors: [accent, accent.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),

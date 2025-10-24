@@ -81,8 +81,9 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
     final accent = Color(
       _selectedCategory?.color ?? theme.colorScheme.primary.value,
     );
-    final emoji =
-        _selectedCategory?.emoji.isNotEmpty == true ? _selectedCategory!.emoji : '💸';
+    final emoji = _selectedCategory?.emoji.isNotEmpty == true
+        ? _selectedCategory!.emoji
+        : '💸';
 
     return Scaffold(
       appBar: AppBar(
@@ -209,7 +210,7 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                             ),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
-                              color: theme.colorScheme.surfaceVariant
+                              color: theme.colorScheme.surfaceContainerHighest
                                   .withOpacity(0.4),
                             ),
                             child: Row(
@@ -233,7 +234,7 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                       const _SectionLabel('Category'),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<Category>(
-                        value: _selectedCategory,
+                        initialValue: _selectedCategory,
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.category),
                           hintText: 'Select a category',
@@ -244,7 +245,9 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                                 value: c,
                                 child: Row(
                                   children: [
-                                    Text(c.emoji.isNotEmpty ? '${c.emoji} ' : ''),
+                                    Text(
+                                      c.emoji.isNotEmpty ? '${c.emoji} ' : '',
+                                    ),
                                     Text(c.name),
                                   ],
                                 ),
@@ -285,12 +288,14 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                             label: isEdit ? 'Save Changes' : 'Save Expense',
                             icon: Icons.save,
                             onPressed: () async {
-                              if (!(_formKey.currentState?.validate() ?? false)) {
+                              if (!(_formKey.currentState?.validate() ??
+                                  false)) {
                                 return;
                               }
 
-                              final amount =
-                                  double.parse(_amountController.text);
+                              final amount = double.parse(
+                                _amountController.text,
+                              );
                               final updated = Expense(
                                 id: _original?.id ?? const Uuid().v4(),
                                 amountMinor: (amount * 100).round(),
@@ -354,10 +359,7 @@ class _ExpenseHeader extends StatelessWidget {
             shape: BoxShape.circle,
             color: Colors.white.withOpacity(0.2),
           ),
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 28),
-          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 28)),
         );
 
         final dateTexts = Column(
@@ -365,9 +367,7 @@ class _ExpenseHeader extends StatelessWidget {
           children: [
             Text(
               'Scheduled on',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.white70,
-              ),
+              style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
             ),
             Text(
               dateLabel,
@@ -389,10 +389,7 @@ class _ExpenseHeader extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                accent,
-                accent.withOpacity(0.75),
-              ],
+              colors: [accent, accent.withOpacity(0.75)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -437,10 +434,7 @@ class _ExpenseHeader extends StatelessWidget {
                     const SizedBox(height: 12),
                     dateTexts,
                     const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: trailingIcon,
-                    ),
+                    Align(alignment: Alignment.centerLeft, child: trailingIcon),
                   ],
                 )
               else
@@ -464,7 +458,8 @@ class _ExpenseHeader extends StatelessWidget {
           child: content,
         );
 
-        final fitsHeight = constraints.maxHeight.isInfinite ||
+        final fitsHeight =
+            constraints.maxHeight.isInfinite ||
             constraints.maxHeight >= preferredHeight;
 
         if (!isCompact && fitsHeight) {
@@ -490,10 +485,10 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       label.toUpperCase(),
       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            letterSpacing: 1.1,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-          ),
+        letterSpacing: 1.1,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 }

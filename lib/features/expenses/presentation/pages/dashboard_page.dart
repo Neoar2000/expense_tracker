@@ -286,6 +286,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
                         : '${stats.count} purchases',
                     style: theme.textTheme.bodyMedium,
                   ),
+                  footer: Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: byCategoryResolved.map((e) {
+                      final label =
+                          '${e.cat.emoji.isNotEmpty ? '${e.cat.emoji} ' : ''}${e.cat.name}';
+                      return _LegendDot(
+                        color: Color(e.cat.color),
+                        label: label,
+                      );
+                    }).toList(),
+                  ),
                   child: SizedBox(
                     height: 240,
                     child: byCategoryResolved.isEmpty
@@ -300,18 +312,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
                               ),
                             ),
                           ),
-                  ),
-                  footer: Wrap(
-                    spacing: 12,
-                    runSpacing: 6,
-                    children: byCategoryResolved.map((e) {
-                      final label =
-                          '${e.cat.emoji.isNotEmpty ? '${e.cat.emoji} ' : ''}${e.cat.name}';
-                      return _LegendDot(
-                        color: Color(e.cat.color),
-                        label: label,
-                      );
-                    }).toList(),
                   ),
                 ),
               ),
@@ -710,7 +710,7 @@ class _KpiCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         color: theme.colorScheme.surface,
-        border: Border.all(color: theme.colorScheme.surfaceVariant),
+        border: Border.all(color: theme.colorScheme.surfaceContainerHighest),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.12),
