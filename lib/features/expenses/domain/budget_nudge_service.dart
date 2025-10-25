@@ -6,7 +6,6 @@ import 'package:expense_tracker/core/utils/adaptive_feedback.dart';
 import 'package:expense_tracker/core/services/local_notification_service.dart';
 
 import '../data/models/budget_nudge_log.dart';
-import '../data/models/category_budget.dart';
 import '../data/repositories/budget_nudge_log_repo.dart';
 import '../data/repositories/category_budget_repo.dart';
 import '../presentation/providers/budgets_provider.dart';

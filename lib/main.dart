@@ -11,7 +11,6 @@ import 'app/router.dart';
 import 'app/theme.dart';
 import 'core/security/auth_controller.dart';
 import 'core/services/local_notification_service.dart';
-import 'core/theme/design_system.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/security/presentation/widgets/auth_gate.dart';
 import 'features/expenses/data/models/budget_nudge_log.dart';

@@ -18,7 +18,7 @@ class LocalNotificationService {
     if (_initialized) return;
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    final darwinInit = DarwinInitializationSettings(
+    const darwinInit = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -67,7 +67,7 @@ class LocalNotificationService {
       presentBadge: true,
       presentSound: true,
     );
-    final details = NotificationDetails(
+    const details = NotificationDetails(
       android: androidDetails,
       iOS: darwinDetails,
     );
