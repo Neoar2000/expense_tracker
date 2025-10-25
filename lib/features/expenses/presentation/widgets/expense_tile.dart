@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive/hive.dart';
 
@@ -6,13 +8,14 @@ import '../../../../core/theme/design_system.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../data/models/category.dart';
 import '../../data/models/expense.dart';
+import '../providers/budgets_provider.dart';
 
-class ExpenseTile extends StatelessWidget {
+class ExpenseTile extends ConsumerWidget {
   final Expense expense;
   const ExpenseTile({super.key, required this.expense});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final categoriesBox = Hive.box<Category>('categories');
     final cat = categoriesBox.values.firstWhere(
@@ -21,11 +24,21 @@ class ExpenseTile extends StatelessWidget {
           Category(id: 'other', name: 'Other', color: 0xFF90A4AE, emoji: '✨'),
     );
     final accent = Color(cat.color);
+    final progressMap = ref.watch(budgetProgressByCategoryProvider);
+    final budgetProgress = progressMap[expense.categoryId];
+    final alertLevel = budgetProgress?.alertLevel ?? BudgetAlertLevel.none;
+    final alertColor = _alertColor(alertLevel, theme, accent);
+    final utilizationPct = budgetProgress == null || budgetProgress.budget.limitMinor == 0
+        ? null
+        : (budgetProgress.utilization * 100).clamp(0, 999);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push('/edit/${expense.id}'),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          context.push('/edit/${expense.id}');
+        },
         borderRadius: BorderRadius.circular(28),
         child: AnimatedContainer(
           duration: AppDurations.short,
@@ -87,6 +100,28 @@ class ExpenseTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (budgetProgress != null &&
+                        budgetProgress.budget.limitMinor > 0) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          minHeight: 4,
+                          value:
+                              budgetProgress.utilization.clamp(0.0, 1.0),
+                          color: alertColor,
+                          backgroundColor:
+                              accent.withOpacity(0.1),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${formatMinor(budgetProgress.spentMinor)} of ${formatMinor(budgetProgress.budget.limitMinor)}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -94,6 +129,41 @@ class ExpenseTile extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  if (alertLevel != BudgetAlertLevel.none) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: alertColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            alertLevel == BudgetAlertLevel.critical
+                                ? Icons.error_rounded
+                                : Icons.warning_amber_rounded,
+                            size: 14,
+                            color: alertColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            alertLevel == BudgetAlertLevel.critical
+                                ? 'Over budget'
+                                : 'Near limit',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: alertColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Text(
                     formatMinor(expense.amountMinor),
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -118,6 +188,15 @@ class ExpenseTile extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (utilizationPct != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${utilizationPct.toStringAsFixed(0)}% of cap',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -125,6 +204,21 @@ class ExpenseTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _alertColor(
+    BudgetAlertLevel level,
+    ThemeData theme,
+    Color fallback,
+  ) {
+    switch (level) {
+      case BudgetAlertLevel.none:
+        return fallback;
+      case BudgetAlertLevel.warning:
+        return AppColors.warning;
+      case BudgetAlertLevel.critical:
+        return AppColors.danger;
+    }
   }
 }
 

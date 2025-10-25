@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme/design_system.dart';
@@ -194,6 +195,32 @@ class AppTheme {
       labelLarge: base.labelLarge?.copyWith(
         fontWeight: FontWeight.w600,
         letterSpacing: 0.4,
+      ),
+    );
+  }
+
+  static CupertinoThemeData cupertino(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return CupertinoThemeData(
+      brightness: brightness,
+      primaryColor: AppColors.primary,
+      scaffoldBackgroundColor:
+          isDark ? AppColors.darkBackground : AppColors.background,
+      barBackgroundColor:
+          isDark ? AppColors.darkSurface : const Color(0xFFF1F2F8),
+      textTheme: CupertinoTextThemeData(
+        navTitleTextStyle: TextStyle(
+          fontFamily: '.SF Pro Display',
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : AppColors.textPrimary,
+        ),
+        navLargeTitleTextStyle: TextStyle(
+          fontFamily: '.SF Pro Display',
+          fontSize: 34,
+          fontWeight: FontWeight.bold,
+          color: isDark ? Colors.white : AppColors.textPrimary,
+        ),
       ),
     );
   }

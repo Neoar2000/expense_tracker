@@ -45,5 +45,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Used to alert you when a budget nears or exceeds its goal.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock the app securely.</string>
 </dict>
 </plist>

@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive/hive.dart';
@@ -12,10 +13,12 @@ import '../../../../core/theme/design_system.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/services/csv_exporter.dart';
 import '../../../../core/widgets/adaptive_dialog.dart';
+import '../../../../core/widgets/theme_toggle_button.dart';
 import '../../data/models/category.dart';
-import '../providers/stats_provider.dart';
+import '../providers/budgets_provider.dart';
 import '../providers/filters_provider.dart';
 import '../providers/expenses_provider.dart';
+import '../providers/stats_provider.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -31,6 +34,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
   late final Animation<double> _kpiAnimation;
   late final Animation<double> _chartsAnimation;
   late final ProviderSubscription<MonthStats> _statsSubscription;
+  late final ProviderSubscription<List<BudgetAlert>> _budgetAlertsSubscription;
 
   @override
   void initState() {
@@ -57,6 +61,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       (_, __) => _replayAnimations(),
       fireImmediately: true,
     );
+    _budgetAlertsSubscription = ref.listenManual<List<BudgetAlert>>(
+      budgetAlertsProvider,
+      (_, next) => _handleBudgetAlerts(next),
+      fireImmediately: true,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _replayAnimations());
   }
@@ -74,6 +83,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
   void dispose() {
     routeObserver.unsubscribe(this);
     _statsSubscription.close();
+    _budgetAlertsSubscription.close();
     _entryController.dispose();
     super.dispose();
   }
@@ -92,6 +102,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       ..forward();
   }
 
+  Future<void> _handleBudgetAlerts(List<BudgetAlert> alerts) async {
+    final actionable = alerts.where((a) => a.shouldDispatch).toList();
+    if (actionable.isEmpty) return;
+    final service = await ref.read(budgetNudgeServiceFutureProvider.future);
+    await service.dispatchAlerts(actionable, mounted ? context : null);
+    ref.read(budgetsProvider.notifier).refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -100,6 +118,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
     final categoriesBox = Hive.box<Category>('categories');
     final filterState = ref.watch(filtersProvider);
     final selectedMonth = filterState.month;
+    final budgetProgress = ref.watch(monthlyBudgetProgressProvider);
 
     final byCategoryResolved = stats.byCategory.map((ct) {
       final cat = categoriesBox.values.firstWhere(
@@ -141,6 +160,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           ),
         ),
         actions: [
+          const ThemeToggleButton(),
+          const SizedBox(width: 4),
+          IconButton(
+            tooltip: 'Manage budgets',
+            onPressed: () => context.push('/budgets'),
+            icon: const Icon(Icons.flag_outlined),
+          ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'View expenses',
             onPressed: () => context.push('/expenses'),
@@ -149,7 +176,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           const SizedBox(width: 4),
           IconButton.filled(
             tooltip: 'Add expense',
-            onPressed: () => context.push('/add'),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              context.push('/add');
+            },
             icon: const Icon(Icons.add_rounded),
           ),
           const SizedBox(width: 8),
@@ -264,6 +294,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              AnimatedBuilder(
+                animation: _chartsAnimation,
+                builder: (context, child) {
+                  final progress = _chartsAnimation.value.clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: progress,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - progress) * 12),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _BudgetGoalsCard(items: budgetProgress),
               ),
               const SizedBox(height: 16),
               AnimatedBuilder(
@@ -617,7 +662,12 @@ class _HeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
-            onPressed: canExport ? onExport : null,
+            onPressed: canExport
+                ? () {
+                    HapticFeedback.selectionClick();
+                    onExport?.call();
+                  }
+                : null,
             icon: const Icon(Icons.ios_share),
             label: const Text('Export CSV'),
             style: FilledButton.styleFrom(
@@ -640,7 +690,10 @@ class _MonthButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton.filledTonal(
-      onPressed: onTap,
+      onPressed: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       icon: Icon(icon),
       style: IconButton.styleFrom(
         foregroundColor: Colors.white,
@@ -792,6 +845,280 @@ class _ChartCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _BudgetGoalsCard extends StatelessWidget {
+  const _BudgetGoalsCard({required this.items});
+  final List<BudgetProgress> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final totalLimit =
+        items.fold<int>(0, (sum, e) => sum + e.budget.limitMinor);
+    final totalSpent = items.fold<int>(0, (sum, e) => sum + e.spentMinor);
+    final overallUtilization =
+        totalLimit == 0 ? 0.0 : (totalSpent / totalLimit).clamp(0.0, 2.0);
+    final statusColor = _statusColor(
+      _levelForUtil(overallUtilization),
+      theme,
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Budget goals',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    totalLimit == 0
+                        ? 'No caps set'
+                        : '${(overallUtilization * 100).toStringAsFixed(0)}% of portfolio limit',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (items.isEmpty)
+              const Text('No monthly budgets configured yet.')
+            else
+              Column(
+                children: [
+                  for (final item in items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: _BudgetGoalRow(item: item),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  BudgetAlertLevel _levelForUtil(double utilization) {
+    if (utilization >= 1) return BudgetAlertLevel.critical;
+    if (utilization >= 0.85) return BudgetAlertLevel.warning;
+    return BudgetAlertLevel.none;
+  }
+
+  Color _statusColor(BudgetAlertLevel level, ThemeData theme) {
+    switch (level) {
+      case BudgetAlertLevel.none:
+        return theme.colorScheme.primary;
+      case BudgetAlertLevel.warning:
+        return AppColors.warning;
+      case BudgetAlertLevel.critical:
+        return AppColors.danger;
+    }
+  }
+}
+
+class _BudgetGoalRow extends StatelessWidget {
+  const _BudgetGoalRow({required this.item});
+
+  final BudgetProgress item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = _statusColor(item, theme);
+    final icon = _statusIcon(item.alertLevel);
+    final label = _statusLabel(item);
+    final double? percentUsed =
+        item.budget.limitMinor == 0 ? null : (item.utilization * 100);
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: Color(item.category.color).withOpacity(0.15),
+              child: Text(
+                item.category.emoji.isNotEmpty ? item.category.emoji : '💰',
+                style: const TextStyle(fontSize: 22),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.category.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${formatMinor(item.spentMinor)} of ${formatMinor(item.budget.limitMinor)}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, size: 16, color: statusColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            minHeight: 8,
+            value: item.utilization.clamp(0.0, 1.0),
+            color: statusColor,
+            backgroundColor:
+                theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _NudgeIcon(
+              icon: Icons.notifications_active_outlined,
+              enabled: item.budget.pushNudgesEnabled,
+              active: item.alertLevel != BudgetAlertLevel.none,
+            ),
+            const SizedBox(width: 10),
+            _NudgeIcon(
+              icon: Icons.email_outlined,
+              enabled: item.budget.emailNudgesEnabled,
+              active: item.alertLevel == BudgetAlertLevel.critical,
+            ),
+            const Spacer(),
+            Text(
+              percentUsed == null
+                  ? 'No limit'
+                  : '${percentUsed.clamp(0, 999).toStringAsFixed(0)}% used',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              item.budget.lastAlertAt == null
+                  ? 'No nudges yet'
+                  : 'Last nudge ${_relativeTime(item.budget.lastAlertAt!)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Color _statusColor(BudgetProgress item, ThemeData theme) {
+    switch (item.alertLevel) {
+      case BudgetAlertLevel.none:
+        return theme.colorScheme.primary;
+      case BudgetAlertLevel.warning:
+        return AppColors.warning;
+      case BudgetAlertLevel.critical:
+        return AppColors.danger;
+    }
+  }
+
+  IconData _statusIcon(BudgetAlertLevel level) {
+    switch (level) {
+      case BudgetAlertLevel.none:
+        return Icons.check_circle;
+      case BudgetAlertLevel.warning:
+        return Icons.warning_amber_rounded;
+      case BudgetAlertLevel.critical:
+        return Icons.error_rounded;
+    }
+  }
+
+  String _statusLabel(BudgetProgress item) {
+    switch (item.alertLevel) {
+      case BudgetAlertLevel.none:
+        return 'On track';
+      case BudgetAlertLevel.warning:
+        return 'Warning';
+      case BudgetAlertLevel.critical:
+        return 'Over';
+    }
+  }
+
+  String _relativeTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+}
+
+class _NudgeIcon extends StatelessWidget {
+  const _NudgeIcon({
+    required this.icon,
+    required this.enabled,
+    required this.active,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = !enabled
+        ? theme.colorScheme.onSurfaceVariant.withOpacity(0.3)
+        : active
+            ? theme.colorScheme.secondary
+            : theme.colorScheme.onSurfaceVariant;
+    return Icon(icon, size: 18, color: color);
   }
 }
 

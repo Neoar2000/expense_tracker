@@ -2,12 +2,15 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/design_system.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/adaptive_dialog.dart';
+import '../../../../core/widgets/theme_toggle_button.dart';
 import '../../data/models/expense.dart';
 import '../../data/models/category.dart';
 import '../providers/expenses_provider.dart';
@@ -89,6 +92,10 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(), // native back
         ),
+        actions: const [
+          ThemeToggleButton(),
+          SizedBox(width: 8),
+        ],
       ),
       floatingActionButton: Platform.isIOS
           ? Padding(
@@ -96,7 +103,10 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
               child: Hero(
                 tag: 'add-expense-cta',
                 child: CupertinoButton.filled(
-                  onPressed: () => context.push('/add'),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    context.push('/add');
+                  },
                   padding: const EdgeInsets.symmetric(
                     horizontal: 18,
                     vertical: 12,
@@ -114,7 +124,10 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
             )
           : FloatingActionButton.extended(
               heroTag: 'add-expense-cta',
-              onPressed: () => context.push('/add'),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                context.push('/add');
+              },
               icon: const Icon(Icons.add),
               label: const Text('Add'),
             ),
@@ -227,6 +240,7 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
 
                               // delete after animation
                               onDismissed: (_) async {
+                                HapticFeedback.mediumImpact();
                                 await controller.deleteById(e.id);
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -361,7 +375,10 @@ class _FiltersBar extends StatelessWidget {
                   ),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: onDateTap,
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    onDateTap();
+                  },
                   icon: const Icon(Icons.event),
                   label: Text(dateLabel),
                 ),

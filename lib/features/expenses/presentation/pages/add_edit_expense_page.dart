@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -277,6 +278,7 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                             label: 'Cancel',
                             style: AdaptiveButtonStyle.secondary,
                             onPressed: () {
+                              HapticFeedback.selectionClick();
                               if (context.canPop()) {
                                 context.pop();
                               } else {
@@ -288,6 +290,7 @@ class _AddEditExpensePageState extends ConsumerState<AddEditExpensePage> {
                             label: isEdit ? 'Save Changes' : 'Save Expense',
                             icon: Icons.save,
                             onPressed: () async {
+                              HapticFeedback.selectionClick();
                               if (!(_formKey.currentState?.validate() ??
                                   false)) {
                                 return;

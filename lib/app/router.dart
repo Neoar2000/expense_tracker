@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../features/expenses/presentation/pages/budget_settings_page.dart';
 import '../features/expenses/presentation/pages/dashboard_page.dart';
 import '../features/expenses/presentation/pages/expenses_list_page.dart';
 import '../features/expenses/presentation/pages/add_edit_expense_page.dart';
@@ -21,6 +22,11 @@ GoRouter buildRouter() {
         path: '/expenses',
         name: 'expenses',
         builder: (context, state) => const ExpensesListPage(),
+      ),
+      GoRoute(
+        path: '/budgets',
+        name: 'budgets',
+        builder: (context, state) => const BudgetSettingsPage(),
       ),
       GoRoute(
         path: '/add',
